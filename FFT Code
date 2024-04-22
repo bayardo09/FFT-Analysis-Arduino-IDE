@@ -1,0 +1,50 @@
+#include "arduinoFFT.h" // Include the FFT library
+
+#define CHANNEL A0
+const uint16_t samples = 128; // This value MUST ALWAYS be a power of 2
+const double samplingFrequency = 450; // Hz, must be less than 10000 due to ADC
+
+double vReal[samples]; // 'vReal' is where we will store our real data
+double vImag[samples]; // 'vImag' is where we will store our imaginary data (set to 0 in this case)
+
+// Create FFT object
+ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, samples, samplingFrequency);
+
+void setup() {
+  Serial.begin(115200); // Start the serial communication
+  while(!Serial); // Wait for the serial port to connect
+}
+
+void loop() {
+  unsigned long microseconds = micros();
+  unsigned int sampling_period_us = round(1000000*(1.0/samplingFrequency));
+
+  // Sampling
+  for(int i = 0; i < samples; i++) {
+    vReal[i] = analogRead(CHANNEL); // Read from analog pin
+    vImag[i] = 0; // Set the imaginary part to 0
+    while(micros() - microseconds < sampling_period_us){
+      //empty loop
+    }
+    microseconds += sampling_period_us;
+  }
+
+  // Apply window function to the sampled data
+  FFT.windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD); // Windowing before computing FFT
+
+  // Compute FFT
+  FFT.compute(FFT_FORWARD); // Compute the FFT
+
+  // Compute magnitudes
+  FFT.complexToMagnitude(); // Convert the complex numbers to magnitudes
+
+  // Visualization for Serial Plotter
+  for (uint16_t i = 0; i < (samples / 2); i++) { // Since the results are symmetrical, we only need half of them
+    double frequency = (i * 1.0 * samplingFrequency) / samples; // Calculate the frequency at this index
+    // For Serial Plotter, we just print the magnitude
+    // Each magnitude will be on a new line, and the plotter will automatically graph it
+    Serial.println(vReal[i]);
+  }
+
+  delay(1000); // Wait a bit before starting over
+}
